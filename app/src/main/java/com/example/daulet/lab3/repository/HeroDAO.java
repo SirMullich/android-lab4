@@ -21,6 +21,9 @@ public interface HeroDAO {
     @Insert
     void insert(Hero news);
 
+    @Insert
+    void insertList(List<Hero> heroes);
+
     @Delete
     void delete(Hero news);
 

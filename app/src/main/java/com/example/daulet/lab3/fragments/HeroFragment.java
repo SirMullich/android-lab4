@@ -11,12 +11,15 @@ import android.support.v7.widget.DefaultItemAnimator;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.helper.ItemTouchHelper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 
 import com.example.daulet.lab3.R;
+import com.example.daulet.lab3.api.Client;
+import com.example.daulet.lab3.api.Interface;
 import com.example.daulet.lab3.models.Hero;
 import com.example.daulet.lab3.recycleViewAdapters.HerosAdapter;
 import com.example.daulet.lab3.repository.RoomDb;
@@ -24,6 +27,10 @@ import com.example.daulet.lab3.repository.RoomDb;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 /**
  * Created by daulet on 10/13/17.
@@ -54,7 +61,7 @@ public class HeroFragment extends Fragment implements View.OnClickListener {
     public void initialize(){
         initDialog();
         initSwipe();
-        new GetNewsAsync().execute();
+        GetHeros();
     }
 
     @Override
@@ -118,19 +125,30 @@ public class HeroFragment extends Fragment implements View.OnClickListener {
         }
     }
 
-    public void FillData() {
-//        Calendar c = Calendar.getInstance();
-//        SimpleDateFormat df = new SimpleDateFormat("dd-MMM-yyyy");
-//        String formattedDate = df.format(c.getTime());
-//
-//        newsList.add(new News("Batman vs Superman", "Following the destruction of Metropolis, Batman embarks on a personal vendetta against Superman", formattedDate));
-//        newsList.add(new News("X-Men: Apocalypse", "X-Men: Apocalypse is an upcoming American superhero film based on the X-Men characters that appear in Marvel Comics", formattedDate));
-//        newsList.add(new News("Captain America: Civil War", "A feud between Captain America and Iron Man leaves the Avengers in turmoil.", formattedDate));
-//        newsList.add(new News("Kung Fu Panda 3", "After reuniting with his long-lost father, Po  must train a village of pandas", formattedDate));
-//        newsList.add(new News("Warcraft", "Fleeing their dying home to colonize another, fearsome orc warriors invade the peaceful realm of Azeroth.", formattedDate));
-//        newsList.add(new News("Alice in Wonderland", "Alice in Wonderland: Through the Looking Glass", formattedDate));
-//
-//        adapter.notifyDataSetChanged();
+    public void GetHeros(){
+        try {
+
+            Interface apiService = Client.getClient().create(Interface.class);
+            Call<List<Hero>> call = apiService.getHerosAPIList();
+            call.enqueue(new Callback<List<Hero>>() {
+                @Override
+                public void onResponse(Call<List<Hero>> call, Response<List<Hero>> response) {
+                    Log.e("Response", response.body().toString());
+                    List<Hero> newHerosList = response.body();
+                    setToRecyclerView(newHerosList);
+                    new InsertListAsync().execute(newHerosList);
+                }
+
+                @Override
+                public void onFailure(Call<List<Hero>> call, Throwable t) {
+                    Log.e("Error", t.getLocalizedMessage());
+                }
+            });
+        } catch (Exception e) {
+            System.out.println("Error " + e.getMessage());
+            new GetHeroesAsync().execute();
+        }
+
     }
 
     public void AddNews(Hero hero){
@@ -153,8 +171,25 @@ public class HeroFragment extends Fragment implements View.OnClickListener {
         }
     }
 
+    public void SyncWithAPI(List<Hero> heroList){
+        Interface apiService = Client.getClient().create(Interface.class);
+        Call<List<Hero>> postCreateCall = apiService.createHeroesAPIBlob();
 
-    private class GetNewsAsync extends AsyncTask<Void, Void, List <Hero>> {
+        postCreateCall.enqueue(new Callback<List<Hero>>() {
+            @Override
+            public void onResponse(Call<List<Hero>> call, Response<List<Hero>> response) {
+                List<Hero> newsListAPI = response.body();
+            }
+
+            @Override
+            public void onFailure(Call<List<Hero>> call, Throwable t) {
+
+            }
+        });
+    }
+
+
+    private class GetHeroesAsync extends AsyncTask<Void, Void, List <Hero>> {
         @Override
         protected void onPreExecute() {
             super.onPreExecute();
@@ -178,6 +213,27 @@ public class HeroFragment extends Fragment implements View.OnClickListener {
         recyclerView.setLayoutManager(new GridLayoutManager(this.getContext(), 1));
         recyclerView.setItemAnimator(new DefaultItemAnimator());
         recyclerView.setAdapter(adapter);
+    }
+
+    private class InsertListAsync extends AsyncTask<List<Hero>, Void, Void>{
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
+
+        @Override
+        protected Void doInBackground(List<Hero> ... crHero) {
+            for (Hero nItem : crHero[0]) {
+                database.newsDao().insert(nItem);
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+        }
     }
 
     private class InsertAsync extends AsyncTask<Hero, Void, Void>{
